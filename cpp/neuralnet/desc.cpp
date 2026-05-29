@@ -1796,6 +1796,7 @@ void ModelDesc::loadFromFileMaybeGZipped(const string& fileName, ModelDesc& desc
   try {
     string lower = Global::toLower(fileName);
     //Read model file with no compression if it's directly named .txt or .bin
+    /* fausten
     if(Global::isSuffix(lower,".txt")) {
       bool binaryFloats = false;
       string uncompressed;
@@ -1815,6 +1816,10 @@ void ModelDesc::loadFromFileMaybeGZipped(const string& fileName, ModelDesc& desc
       descBuf = ModelDesc(uncompressedIn,sha256Buf,binaryFloats);
     }
     else if(Global::isSuffix(lower,".txt.gz") || Global::isSuffix(lower,".bin.gz") || Global::isSuffix(lower,".gz")) {
+    fausten end */
+    // fausten
+    if (1==1) {
+    // fausten end
       string uncompressed;
       string sha256Buf;
       FileUtils::uncompressAndLoadFileIntoString(fileName,expectedSha256,uncompressed,&sha256Buf);

@@ -450,19 +450,29 @@ void AsyncBot::internalSearchThreadLoop() {
           return;
       }
 
-      double periodToWait = firstCallbackAfter;
+      // double periodToWait = firstCallbackAfter;
       bool gotReportYet = false;
+      // fausten
+      bool isFirstLoop = true;
       while(true) {
+        double periodToWait = isFirstLoop ? firstCallbackAfter : callbackPeriod;
         if(periodToWait < 0)
           return;
+        isFirstLoop = false;
 
         callbackLoopWaiting.wait_for(
           callbackLock,
           std::chrono::duration<double>(periodToWait),
           [&callbackLoopShouldStop](){return callbackLoopShouldStop.load();}
         );
-        if(callbackLoopShouldStop.load())
+        if(callbackLoopShouldStop.load()) {
+          // fausten
+          callbackLock.unlock();
+          analyzeCallbackLocal(search);
+          callbackLock.lock();
+          // fausten end
           return;
+        }
 
         // If the search hasn't yet produced any reportable root values because firstCallbackAfter
         // elapsed before the root NN eval finished, skip callback and re-wait.
@@ -478,9 +488,11 @@ void AsyncBot::internalSearchThreadLoop() {
           gotReportYet = true;
           periodToWait = callbackPeriod;
         }
-        callbackLock.unlock();
-        analyzeCallbackLocal(search);
-        callbackLock.lock();
+        // fausten
+        //callbackLock.unlock();
+        //analyzeCallbackLocal(search);
+        //callbackLock.lock();
+        // fausten end
       }
     };
 

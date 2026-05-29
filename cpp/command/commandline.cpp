@@ -166,6 +166,10 @@ class KataHelpOutput : public TCLAP::StdOutput
 KataGoCommandLine::KataGoCommandLine(const string& message)
   :TCLAP::CmdLine(message, ' ', Version::getKataGoVersionFullInfo(),true),
    modelFileArg(NULL),
+   // fausten
+   timeArg(NULL),
+   okfileArg(NULL),
+   // fausten end
    humanModelFileArg(NULL),
    configFileArg(NULL),
    overrideConfigArg(NULL),
@@ -179,6 +183,10 @@ KataGoCommandLine::KataGoCommandLine(const string& message)
 
 KataGoCommandLine::~KataGoCommandLine() {
   delete modelFileArg;
+  // fausten
+  delete timeArg;
+  delete okfileArg;
+  // fausten end
   delete humanModelFileArg;
   delete configFileArg;
   delete overrideConfigArg;
@@ -210,6 +218,12 @@ void KataGoCommandLine::addModelFileArg() {
   string defaultPath = "";
   modelFileArg = new TCLAP::ValueArg<string>("","model",helpDesc,required,defaultPath,"FILE");
   this->add(*modelFileArg);
+  // fausten
+  timeArg = new TCLAP::ValueArg<string>("","time","Starting time to show",required,defaultPath,"std::string");
+  this->add(*timeArg);
+  okfileArg = new TCLAP::ValueArg<string>("","okfile","Ok file",required,defaultPath,"std::string");
+  this->add(*okfileArg);
+  // fausten end
 }
 
 void KataGoCommandLine::addHumanModelFileArg() {
@@ -255,6 +269,16 @@ void KataGoCommandLine::addOverrideConfigArg() {
   this->add(*overrideConfigArg);
 }
 
+// fausten
+string KataGoCommandLine::getTimeStr() const {
+    string timeStr = timeArg->getValue();
+    return timeStr;
+}
+string KataGoCommandLine::getokfileStr() const {
+    string okfileStr = okfileArg->getValue();
+    return okfileStr;
+}
+// fausten end
 
 string KataGoCommandLine::getModelFile() const {
   testAssert(modelFileArg != NULL);

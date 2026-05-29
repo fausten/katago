@@ -1,4 +1,8 @@
 #include "main.h"
+// fausten
+#include <unistd.h>
+// fausten end
+
 
 #include "core/os.h"
 #include "core/mainargs.h"
@@ -185,6 +189,12 @@ static int handleSubcommand(const string& subcommand, const vector<string>& args
 int main(int argc, const char* const* argv) {
   vector<string> args = MainArgs::getCommandLineArgsUTF8(argc,argv);
   MainArgs::makeCoutAndCerrAcceptUTF8();
+  // fausten
+  cout << "pid: " << getpid() << endl;
+  char file[256];
+  sprintf(file,"/root/ramdisk/pid-%d.txt",getpid());
+  remove(file);
+  // fausten end
 
   if(args.size() < 2) {
     printHelp(args);

@@ -1,3 +1,13 @@
+// fausten
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+// fausten end
 #include "../core/global.h"
 #include "../core/commandloop.h"
 #include "../core/config_parser.h"
@@ -998,7 +1008,9 @@ struct GTPEngine {
           }
         }
 
-        cout << out.str() << endl;
+        // fausten
+        cout << out.str() << endl << endl;
+        // fausten end
       };
     }
     return callback;
@@ -1406,7 +1418,9 @@ struct GTPEngine {
     else
       bot->setAlwaysIncludeOwnerMap(false);
 
-    double searchFactor = 1e40; //go basically forever
+    // fausten
+    double searchFactor = 1.0; //1e40; //go basically forever
+    // fausten end
     bot->analyzeAsync(pla, searchFactor, args.secondsPerReport, args.secondsPerReport, callback);
   }
 
@@ -1891,6 +1905,44 @@ static GTPEngine::AnalyzeArgs parseAnalyzeCommand(
   return args;
 }
 
+// fausten
+void playbw(GTPEngine* engine, int sz, bool &responseIsError, string &response, int bw, char *stepxy);
+void playbw(GTPEngine* engine, int sz, bool &responseIsError, string &response, int bw, char *stepxy) {
+    Player pla;
+    Loc loc;
+    string pieces0, pieces1;
+    if (bw==0) {pieces0="B";}
+    else {pieces0="W";}
+    if (stepxy[0]=='t'&&stepxy[1]=='t') {
+        pieces1="pass";
+    }
+    else {
+        if (stepxy[0]<='h') {pieces1=(char)((int)('A')+(int)(stepxy[0])-(int)('a'));}
+        else {pieces1=(char)((int)('A')+(int)(stepxy[0])-(int)('a')+1);}
+        char tmp[64];
+        snprintf(tmp, 64, "%d", sz-((int)(stepxy[1])-(int)('a')));
+        pieces1=pieces1+tmp;
+    }
+
+    if(!PlayerIO::tryParsePlayer(pieces0,pla)) {
+        responseIsError = true;
+        response = "Could not parse color: '" + pieces0 + "'";
+    }
+    else if(!tryParseLoc(pieces1,engine->bot->getRootBoard(),loc)) {
+        responseIsError = true;
+        string ptmp=stepxy;
+        response = "Could not parse vertex: '" +ptmp+" "+pieces1 + "'";
+    }
+    else {
+        bool suc = engine->play(loc,pla);
+        if(!suc) {
+          responseIsError = true;
+          response = "illegal move";
+        }
+        //maybeStartPondering = true;
+    }
+}
+// fausten end
 
 int MainCmds::gtp(const vector<string>& args) {
   Board::initHash();
@@ -1901,6 +1953,12 @@ int MainCmds::gtp(const vector<string>& args) {
   string nnModelFile;
   string humanModelFile;
   string overrideVersion;
+  // fausten
+  string configFile;
+  string timeStr;
+  string okfileStr;
+  char buf[10240];
+  // fausten end
   KataGoCommandLine cmd("Run KataGo main GTP engine for playing games or casual analysis.");
   try {
     cmd.addConfigFileArg(KataGoCommandLine::defaultGtpConfigFileName(),"gtp_example.cfg");
@@ -1908,10 +1966,18 @@ int MainCmds::gtp(const vector<string>& args) {
     cmd.addHumanModelFileArg();
     cmd.setShortUsageArgLimit();
     cmd.addOverrideConfigArg();
+    // fausten
+    TCLAP::ValueArg<string> configFileArg("","config","Config file to use (see configs/gtp_example.cfg)",true,string(),"FILE");
+    // fausten end
 
     TCLAP::ValueArg<string> overrideVersionArg("","override-version","Force KataGo to say a certain value in response to gtp version command",false,string(),"VERSION");
     cmd.add(overrideVersionArg);
     cmd.parseArgs(args);
+    // fausten
+    configFile = configFileArg.getValue();
+    timeStr = cmd.getTimeStr();
+    okfileStr = cmd.getokfileStr();
+    // fausten end
     nnModelFile = cmd.getModelFile();
     humanModelFile = cmd.getHumanModelFile();
     overrideVersion = overrideVersionArg.getValue();
@@ -1928,6 +1994,13 @@ int MainCmds::gtp(const vector<string>& args) {
   const bool logAllGTPCommunication = cfg.getBool("logAllGTPCommunication");
   const bool logSearchInfo = cfg.getBool("logSearchInfo");
   const bool logSearchInfoForChosenMove = cfg.contains("logSearchInfoForChosenMove") ? cfg.getBool("logSearchInfoForChosenMove") : false;
+  // fausten
+  int defaultsz = cfg.getInt("boardsize");
+  auto now = std::chrono::system_clock::now();
+  auto now_c = std::chrono::system_clock::to_time_t(now);
+  cerr << "current time: " << std::put_time(std::localtime(&now_c), "%F %T") << endl;
+  cerr << "boardsize: " << defaultsz << endl;
+  // fausten end
 
   bool startupPrintMessageToStderr = true;
   if(cfg.contains("startupPrintMessageToStderr"))
@@ -2091,6 +2164,10 @@ int MainCmds::gtp(const vector<string>& args) {
   //Check for unused config keys
   cfg.warnUnusedKeys(cerr,&logger);
   Setup::maybeWarnHumanSLParams(initialGenmoveParams,engine->nnEval,engine->humanEval,cerr,&logger);
+  // fausten
+  logger.write("Okfile: " + okfileStr);
+  logger.write("Time: " + timeStr);
+  // fausten end
 
   logger.write("Loaded config " + cfg.getFileName());
   logger.write("Loaded model " + nnModelFile);
@@ -2101,8 +2178,22 @@ int MainCmds::gtp(const vector<string>& args) {
   if(engine->humanEval != NULL)
     logger.write("Human SL model name: "+ (engine->humanEval->getInternalModelName()));
   logger.write("GTP ready, beginning main protocol loop");
+  // fausten
+  char file[256];
+  sprintf(file,"/root/ramdisk/pid-%d.txt",getpid());
+  int fd = open(file, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |S_IWOTH);
+  close(fd);
+  remove(okfileStr.c_str());
+  sprintf(file,"%s",okfileStr.c_str());
+  fd = open(file, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |S_IWOTH);
+  close(fd);
+  // fausten end
   //Also check loggingToStderr so that we don't duplicate the message from the log file
   if(startupPrintMessageToStderr && !logger.isLoggingToStderr()) {
+    // fausten
+    cerr << "Ok file: " << okfileStr << endl;
+    cerr << "Time: " << timeStr << endl;
+    // fausten end
     cerr << "Loaded config " << cfg.getFileName() << endl;
     cerr << "Loaded model " << nnModelFile << endl;
     if(humanModelFile != "")
@@ -3283,118 +3374,123 @@ int MainCmds::gtp(const vector<string>& args) {
       }
     }
 
+    // fausten
     else if(command == "loadsgf") {
-      if(pieces.size() != 1 && pieces.size() != 2) {
+      engine->clearCache();
+      engine->clearBoard();
+      if(pieces.size() != 1) {
         responseIsError = true;
-        response = "Expected one or two arguments for loadsgf but got '" + Global::concat(pieces," ") + "'";
+        response = "Expected sgf filename";
       }
       else {
-        string filename = pieces[0];
-        bool parseFailed = false;
-        bool moveNumberSpecified = false;
-        int moveNumber = 0;
-        if(pieces.size() == 2) {
-          bool suc = Global::tryStringToInt(pieces[1],moveNumber);
-          moveNumber--;
-          if(!suc || moveNumber < 0 || moveNumber > 10000000)
-            parseFailed = true;
-          else {
-            moveNumberSpecified = true;
+        int fileid=open(pieces[0].c_str(), O_RDONLY);
+        if (fileid<0) {           responseIsError = true;
+           response = "Error loadsgf filename";
+        }
+        else {          // read sgf file
+          int bytes=read(fileid, buf, 10240);
+          int totread=bytes;
+          float km=7.5;
+          //engine->setOrResetBoardSize(cfg,logger,seedRand,sz,sz);
+          engine->updateKomiIfNew(km);
+          while(bytes > 0) {
+                bytes=read(fileid, buf+totread, 10240-totread);
+                if (bytes<=0) break;
+                totread+=bytes;
           }
-        }
-        if(parseFailed) {
-          responseIsError = true;
-          response = "Invalid value for moveNumber for loadsgf";
-        }
-        else {
-          Board sgfInitialBoard;
-          Player sgfInitialNextPla;
-          BoardHistory sgfInitialHist;
-          Rules sgfRules;
-          Board sgfBoard;
-          Player sgfNextPla;
-          BoardHistory sgfHist;
-
-          bool sgfParseSuccess = false;
-          std::unique_ptr<CompactSgf> sgf = nullptr;
-          try {
-            sgf = CompactSgf::loadFile(filename);
-
-            if(sgf->moves.size() > 0x3FFFFFFF)
-              throw StringError("Sgf has too many moves");
-            if(!moveNumberSpecified || moveNumber > sgf->moves.size())
-              moveNumber = (int)sgf->moves.size();
-
-            sgfRules = sgf->getRulesOrWarn(
-              engine->getCurrentRules(), //Use current rules as default
-              [&logger](const string& msg) { logger.write(msg); cerr << msg << endl; }
-            );
-            if(engine->nnEval != NULL) {
-              bool rulesWereSupported;
-              Rules supportedRules = engine->nnEval->getSupportedRules(sgfRules,rulesWereSupported);
-              if(!rulesWereSupported) {
-                ostringstream out;
-                out << "WARNING: Rules " << sgfRules.toJsonStringNoKomi()
-                    << " from sgf not supported by neural net, using " << supportedRules.toJsonStringNoKomi() << " instead";
-                logger.write(out.str());
-                if(!logger.isLoggingToStderr())
-                  cerr << out.str() << endl;
-                sgfRules = supportedRules;
+          buf[totread]='\x0';
+          close(fileid);
+          int pos=0;
+          int prevadd=0;
+          char stepxy[5];
+          int bw=0;
+          while(pos<totread) {
+            if (buf[pos]==';') {
+              prevadd=0;
+              if (buf[pos+1]=='W'&&buf[pos+2]=='[') {
+                stepxy[0]=buf[pos+3];
+                stepxy[1]=buf[pos+4];
+                stepxy[2]='\x0';
+                pos+=6;
+                bw=1;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
+              }
+              else if (buf[pos+1]=='B'&&buf[pos+2]=='[') {
+                stepxy[0]=buf[pos+3];
+                stepxy[1]=buf[pos+4];
+                stepxy[2]='\x0';
+                pos+=6;
+                bw=0;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
+              }
+            }
+            else if (buf[pos]=='A') {
+              if (buf[pos+1]=='W'&&buf[pos+2]=='[') {
+                prevadd=2;
+                stepxy[0]=buf[pos+3];
+                stepxy[1]=buf[pos+4];
+                stepxy[2]='\x0';
+                pos+=6;
+                bw=1;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
+              }
+              else if (buf[pos+1]=='B'&&buf[pos+2]=='[') {
+                prevadd=1;
+                stepxy[0]=buf[pos+3];
+                stepxy[1]=buf[pos+4];
+                stepxy[2]='\x0';
+                pos+=6;
+                bw=0;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
+              }
+            }
+            else if (buf[pos]=='K') {
+              if (buf[pos+1]=='M'&&buf[pos+2]=='[') {
+                char kmstr[20];
+                int i=0;
+                while (buf[pos+3+i]!=']') {
+                  kmstr[i]=buf[pos+3+i];
+                  i++;
+                }
+                kmstr[i]='\x0';
+                char* pEnd;
+                km=strtof(kmstr, &pEnd);
+                pos+=4+i;
+                engine->updateKomiIfNew(km);
+                continue;
+              }
+            }
+            else if (buf[pos]=='[') {
+              if (prevadd==1) {
+                stepxy[0]=buf[pos+1];
+                stepxy[1]=buf[pos+2];
+                stepxy[2]='\x0';
+                pos+=4;
+                bw=0;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
+              }
+              else if (prevadd==2) {
+                stepxy[0]=buf[pos+1];
+                stepxy[1]=buf[pos+2];
+                stepxy[2]='\x0';
+                pos+=4;
+                bw=1;
+                playbw(engine, defaultsz, responseIsError, response, bw, stepxy);
+                continue;
               }
             }
 
-            if(isForcingKomi)
-              sgfRules.komi = forcedKomi;
-
-            {
-              //See if the rules differ, IGNORING komi differences
-              Rules currentRules = engine->getCurrentRules();
-              currentRules.komi = sgfRules.komi;
-              if(sgfRules != currentRules) {
-                ostringstream out;
-                out << "Changing rules to " << sgfRules.toJsonStringNoKomi();
-                logger.write(out.str());
-                if(!logger.isLoggingToStderr())
-                  cerr << out.str() << endl;
-              }
-            }
-
-            sgf->setupInitialBoardAndHist(sgfRules, sgfInitialBoard, sgfInitialNextPla, sgfInitialHist);
-            sgfInitialHist.setInitialTurnNumber(sgfInitialBoard.numStonesOnBoard()); //Should give more accurate temperaure and time control behavior
-            sgfBoard = sgfInitialBoard;
-            sgfNextPla = sgfInitialNextPla;
-            sgfHist = sgfInitialHist;
-            sgf->playMovesTolerant(sgfBoard,sgfNextPla,sgfHist,moveNumber,preventEncore);
-
-            sgf = nullptr;
-            sgfParseSuccess = true;
-          }
-          catch(const StringError& err) {
-            sgf = nullptr;
-            responseIsError = true;
-            response = "Could not load sgf: " + string(err.what());
-          }
-          catch(...) {
-            sgf = nullptr;
-            responseIsError = true;
-            response = "Cannot load file";
-          }
-
-          if(sgfParseSuccess) {
-            if(sgfRules.komi != engine->getCurrentRules().komi) {
-              ostringstream out;
-              out << "Changing komi to " << sgfRules.komi;
-              logger.write(out.str());
-              if(!logger.isLoggingToStderr())
-                cerr << out.str() << endl;
-            }
-            maybeSaveAvoidPatterns(false);
-            engine->setOrResetBoardSize(cfg,logger,seedRand,sgfBoard.x_size,sgfBoard.y_size,logger.isLoggingToStderr());
-            engine->setPositionAndRules(sgfNextPla, sgfBoard, sgfHist, sgfInitialBoard, sgfInitialNextPla, sgfHist.moveHistory);
+            pos++;
           }
         }
       }
     }
+    // fausten end
 
     else if(command == "printsgf") {
       if(pieces.size() != 0 && pieces.size() != 1) {

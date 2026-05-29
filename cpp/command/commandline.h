@@ -12,6 +12,10 @@ class Logger;
 class KataGoCommandLine : public TCLAP::CmdLine
 {
   TCLAP::ValueArg<std::string>* modelFileArg;
+  // fausten
+  TCLAP::ValueArg<std::string>* timeArg;
+  TCLAP::ValueArg<std::string>* okfileArg;
+  // fausten end
   TCLAP::ValueArg<std::string>* humanModelFileArg;
   TCLAP::MultiArg<std::string>* configFileArg;
   TCLAP::MultiArg<std::string>* overrideConfigArg;
@@ -43,6 +47,10 @@ class KataGoCommandLine : public TCLAP::CmdLine
   bool modelFileIsDefault() const;
 
   std::string getHumanModelFile() const;
+  // fausten
+  std::string getTimeStr() const;
+  std::string getokfileStr() const;
+  // fausten end
 
   //cfg must be uninitialized, this will initialize it based on user-provided arguments
   void getConfig(ConfigParser& cfg) const;
