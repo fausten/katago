@@ -1,1 +1,1 @@
-./katago gtp -model /home/ai/network-katago28 -config /etc/katago40_std.cfg -time 12:00 -okfile /home/ramdisk/test.ok 
+/home/fausten/katago/katago-1.16.5/cpp/katago gtp -model /home/ai/network-katago28 -config /etc/katago40_std.cfg -time 12:00 -okfile /home/ramdisk/test.ok 
