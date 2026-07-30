@@ -49,7 +49,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 18;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
 
     MiscNNInputParams nnInputParams;
     NNResultBuf buf;
@@ -84,7 +85,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 36;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
 
     MiscNNInputParams nnInputParams;
     NNResultBuf buf;
@@ -118,7 +120,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 23;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
 
     MiscNNInputParams nnInputParams;
     NNResultBuf buf;
@@ -153,7 +156,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 23;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
     hist.setKomi(-7);
 
     MiscNNInputParams nnInputParams;
@@ -185,7 +189,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 23;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
     hist.setKomi(21);
 
     MiscNNInputParams nnInputParams;
@@ -220,7 +225,8 @@ void Tests::runCanaryTests(NNEvaluator* nnEval, int symmetry, bool print) {
     BoardHistory hist;
     Rules initialRules = sgf->getRulesOrFail();
     int turnIdx = 7;
-    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx);
+    //Featurize per the model's own declared pass-alive computation mode.
+    sgf->setupBoardAndHistAssumeLegal(initialRules, board, nextPla, hist, turnIdx, nnEval->modelPreferPassAliveUnderSuicideRules());
 
     MiscNNInputParams nnInputParams;
     NNResultBuf buf;
@@ -654,6 +660,8 @@ bool Tests::runBackendErrorTest(
     nnInputParams.policyOptimism = policyOptimismForTest;
     nnInputParams.playoutDoublingAdvantage = pdaForTest;
     nnInputParams.nnPolicyTemperature = (float)nnPolicyTemperatureForTest;
+    //Featurize per the model's own declared pass-alive computation mode.
+    nnInputParams.passAliveSuicideRulesOverride = nnE->modelPreferPassAliveUnderSuicideRules() ? 1 : 0;
 
     NNResultBuf buf;
     bool skipCache = true;
@@ -774,19 +782,21 @@ bool Tests::runBackendErrorTest(
   {
     GpuErrorStats stats;
     computeStats("fp32 error vs reference", fp32, stats);
-    fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStats99( 0.45, 0.225, 0.45, 0.0006);
+    // 99% score limit is looser than max/4 would give: leadError/scoreMeanError run a touch noisier on
+    // some backends (notably TensorRT, whose "fp32" uses TF32/fused tensor-core GEMMs) on rectangle boards.
+    fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStats99( 0.45, 0.34, 0.45, 0.0006);
     fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStatsMax(1.35, 0.900, 1.35, 0.0012);
     if(verbose)
-      stats.reportClosestMargin("fp32 error vs reference", logger, 0.45, 0.225, 0.45, 0.0006, 1.35, 0.900, 1.35, 0.0012);
+      stats.reportClosestMargin("fp32 error vs reference", logger, 0.45, 0.34, 0.45, 0.0006, 1.35, 0.900, 1.35, 0.0012);
   }
 
   {
     GpuErrorStats stats;
     computeStats("batched fp32 error vs reference", fp32Batched, stats);
-    fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStats99( 0.45, 0.225, 0.45, 0.0006);
+    fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStats99( 0.45, 0.34, 0.45, 0.0006);
     fp32BatchSuccessBuf = fp32BatchSuccessBuf && stats.checkStatsMax(1.35, 0.900, 1.35, 0.0012);
     if(verbose)
-      stats.reportClosestMargin("batched fp32 error vs reference", logger, 0.45, 0.225, 0.45, 0.0006, 1.35, 0.900, 1.35, 0.0012);
+      stats.reportClosestMargin("batched fp32 error vs reference", logger, 0.45, 0.34, 0.45, 0.0006, 1.35, 0.900, 1.35, 0.0012);
   }
 
   if(nnEval32 != nnEval) {
